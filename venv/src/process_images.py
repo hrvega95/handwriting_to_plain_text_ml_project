@@ -60,9 +60,30 @@ def seperate_lines_into_words():
             if h<40 or w<40 :
                 continue
             img_index += 1
-            roi = img[y:y+h, x:x+w]
-            rect = crop_single_image(roi)
+            word = img[y:y+h, x:x+w]
+            rect = crop_single_image(word)
             cv2.imwrite(new_image_path + "/" + str(img_index) +  ".png", rect)
+
+def find_largest_image(data_type):
+    root = os.path.dirname(__file__) + "/../Data/" + data_type + "/"
+    largest = np.zeros((1,1,1),np.uint8)
+    for file_w_path in get_all_data_png(root):
+        img = cv2.imread(file_w_path)
+        if img.shape[0] > largest.shape[0] and img.shape[1] > largest.shape[1]:
+            largest = img
+    print("This is the largest image by height " + str(largest.shape[0]) + " and width " + str(largest.shape[1]))
+    return largest.shape[0], largest.shape[1]
+
+def find_smallest_image(data_type):
+    root = os.path.dirname(__file__) + "/../Data/" + data_type + "/"
+    smallest = np.zeros((10000, 10000, 1), np.uint8)
+    for file_w_path in get_all_data_png(root):
+        img = cv2.imread(file_w_path)
+        if img.shape[0] < smallest.shape[0] and img.shape[1] < smallest.shape[1]:
+            smallest = img
+    print("This is the smallest image by height " + str(smallest.shape[0]) + " and width " + str(smallest.shape[1]))
+    return smallest.shape[0], smallest.shape[1]
+
 
 def get_all_data_png(root):
     list_png_paths = []
@@ -75,4 +96,4 @@ def get_all_data_png(root):
 
 
 if __name__ == "__main__":
-    seperate_lines_into_words()
+    find_largest_image("lines")
