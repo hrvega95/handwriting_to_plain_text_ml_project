@@ -1,7 +1,13 @@
 import tensorflow as tf
+import process_images
 from tensorflow import keras
 import matplotlib.pyplot as plt
 import numpy as np
+
+
+
+def convert_images_to_numpy(data_type):
+
 
 def collect_training_data():
     training_data = keras.datasets.fashion_mnist

@@ -1,5 +1,6 @@
 from imutils import contours
 from skimage import measure
+from parse_text_file_data import read_text_data
 import sklearn
 import PIL.Image
 import sys
@@ -8,7 +9,12 @@ import os.path
 import numpy as np
 import imutils
 import time
+import multiprocessing as mp
+import affinity
 
+
+
+#TODO add multiprocessing
 
 def convert_images_to_bw(image):
     """
@@ -122,7 +128,7 @@ def find_smallest_image(data_type):
     print("This is the smallest image by height " + str(smallest.shape[0]) + " and width " + str(smallest.shape[1]))
     return smallest.shape[0], smallest.shape[1]
 
-def get_all_data_png(root):
+def get_all_data_png(root,containing = None):
     """
     Grabs the path of all the png images in the data set under a specified root
     :param root: The roor directory in which to start the search for all the images in the data set.
@@ -131,9 +137,14 @@ def get_all_data_png(root):
     list_png_paths = []
     for path, subdir, files in os.walk(root):
         for name in files:
-            if "png" in name:
-                name_w_path = os.path.join(path, name)
-                list_png_paths.append(name_w_path)
+            if containing == None:
+                if "png" in name:
+                    name_w_path = os.path.join(path, name)
+                    list_png_paths.append(name_w_path)
+            else:
+                if "png" in name and containing in name:
+                    name_w_path = os.path.join(path, name)
+                    list_png_paths.append(name_w_path)
     return list_png_paths
 
 def resize_images(data_type,scale="d"):
@@ -164,5 +175,45 @@ def resize_images(data_type,scale="d"):
         else:
             continue
 
+def convert_resized_images_to_numpy(data_type):
+    root = os.path.dirname(__file__) + "/../Data/" + data_type + "/"
+    list_resized_images = get_all_data_png(root,"resized")
+    pool_outputs = mulprocess_image_to_np(list_resized_images)
+    y_train_dict  = read_text_data("lines.txt")
+    y_train = []
+    first_image = pool_outputs[0]
+    x_train = first_image[0]
+    y_train.append(y_train_dict.get(first_image[1])[int(first_image[2])])
+    for flattened_img in pool_outputs[1:]:
+        try:
+            y_train.append(y_train_dict.get(flattened_img[1])[int(flattened_img[2]) - 1])
+            x_train = np.vstack((x_train, flattened_img[0]))
+            print(flattened_img[1])
+            print(y_train_dict.get(flattened_img[1]))
+        except Exception as e:
+            print("Skipped image: " + str(flattened_img[1]) + " ,index: " +str(int(flattened_img[2]) - 1))
+            continue
+    y_train = np.asarray(y_train)
+    print(y_train)
+    return x_train,y_train
+
+def mulprocess_image_to_np(image_list):
+    pool_size = mp.cpu_count()
+    pool = mp.Pool(processes=pool_size)
+    list_np_arrays = pool.map(flatten_images, image_list[])
+    pool.close()
+    pool.join()
+    return list_np_arrays
+
+def flatten_images(list_images_path):
+    img = cv2.imread(list_images_path,cv2.IMREAD_GRAYSCALE)
+    x_train = img.flatten()
+    full_image_name = list_images_path.split("/")[-2]
+    paritioned_image_name = list_images_path.split("/")[-1].split("_")[0]
+    return x_train, full_image_name, paritioned_image_name
+
+
 if __name__ == "__main__":
-    resize_images("lines", "u")
+    convert_resized_images_to_numpy("lines")
+
+
