@@ -1,5 +1,5 @@
 import os.path
-
+from contextlib import suppress
 def read_text_data(filename):
     """""
     :param filename: the name of the file you want to read data from
@@ -14,6 +14,10 @@ def read_text_data(filename):
             classifier_data = lines_delimited_space[-1]
             if "|" in classifier_data:
                 words = classifier_data.rstrip().split("|")
+                with suppress(ValueError):
+                    while True:
+                        #removing periods from the data set since they usually blend with words and cannot be seperated from lines and sentences
+                        words.remove(".")
             else:
                 words = classifier_data.rstrip()
 

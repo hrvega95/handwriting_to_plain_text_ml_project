@@ -10,11 +10,12 @@ import numpy as np
 import imutils
 import time
 import multiprocessing as mp
-import affinity
 
-
-
-#TODO add multiprocessing
+class image:
+    def __init__(self, img, image_name, image_index):
+        self.img = img
+        self.image_name = image_name
+        self.image_index = image_index
 
 def convert_images_to_bw(image):
     """
@@ -175,32 +176,39 @@ def resize_images(data_type,scale="d"):
         else:
             continue
 
-def convert_resized_images_to_numpy(data_type):
+def convert_resized_images_to_numpy(data_type,start=0,data_size=None):
+    """
+    Converts the upscaled images into a single numpy array and contructs the y_train array for feeding into tensor flow learner
+    :param data_type: Select one if the 3 data_types that you would like to convert into numpy array
+    :param data_size: how large should the data set be
+    :return:
+    """
+
     root = os.path.dirname(__file__) + "/../Data/" + data_type + "/"
     list_resized_images = get_all_data_png(root,"resized")
-    pool_outputs = mulprocess_image_to_np(list_resized_images)
+    if data_size == None:
+        data_size = len(list_resized_images)
+    pool_outputs = mulprocess_image_to_np(list_resized_images,start,data_size)
     y_train_dict  = read_text_data("lines.txt")
     y_train = []
     first_image = pool_outputs[0]
-    x_train = first_image[0]
-    y_train.append(y_train_dict.get(first_image[1])[int(first_image[2])])
+    x_train = first_image.img/255
+    y_train.append(y_train_dict.get(first_image.image_name)[int(first_image.image_index)])
     for flattened_img in pool_outputs[1:]:
         try:
-            y_train.append(y_train_dict.get(flattened_img[1])[int(flattened_img[2]) - 1])
-            x_train = np.vstack((x_train, flattened_img[0]))
-            print(flattened_img[1])
-            print(y_train_dict.get(flattened_img[1]))
+            y_train.append(y_train_dict.get(flattened_img.image_name)[int(flattened_img.image_index) - 1])
+            x_train = np.vstack((x_train, flattened_img.img/255))
         except Exception as e:
-            print("Skipped image: " + str(flattened_img[1]) + " ,index: " +str(int(flattened_img[2]) - 1))
+            print("Skipped image: " + str(flattened_img.image_name) + " ,index: " +str(int(flattened_img.image_index) - 1))
             continue
     y_train = np.asarray(y_train)
     print(y_train)
     return x_train,y_train
 
-def mulprocess_image_to_np(image_list):
+def mulprocess_image_to_np(image_list,start,data_size):
     pool_size = mp.cpu_count()
     pool = mp.Pool(processes=pool_size)
-    list_np_arrays = pool.map(flatten_images, image_list[])
+    list_np_arrays = pool.map(flatten_images, image_list[start:data_size])
     pool.close()
     pool.join()
     return list_np_arrays
@@ -208,9 +216,8 @@ def mulprocess_image_to_np(image_list):
 def flatten_images(list_images_path):
     img = cv2.imread(list_images_path,cv2.IMREAD_GRAYSCALE)
     x_train = img.flatten()
-    full_image_name = list_images_path.split("/")[-2]
-    paritioned_image_name = list_images_path.split("/")[-1].split("_")[0]
-    return x_train, full_image_name, paritioned_image_name
+    flattened_img = image(x_train,list_images_path.split("/")[-2], list_images_path.split("/")[-1].split("_")[0])
+    return flattened_img
 
 
 if __name__ == "__main__":
