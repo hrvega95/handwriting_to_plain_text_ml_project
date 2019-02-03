@@ -1,21 +1,25 @@
-import tensorflow as tf
-import process_images
 from tensorflow import keras
+from sklearn import preprocessing
 import matplotlib.pyplot as plt
 import numpy as np
+import process_images
+import tensorflow as tf
 import process_images
 
 
 def collect_training_data_lines():
-    x_train, y_train = process_images.convert_resized_images_to_numpy("lines",0,200)
-    x_test, y_test = process_images.convert_resized_images_to_numpy("lines",201,400)
+    x_train, y_train = process_images.convert_resized_images_to_numpy("lines",0,20000)
+    x_test, y_test = process_images.convert_resized_images_to_numpy("lines",20000,40000)
+    label_encoder = preprocessing.LabelEncoder()
+    y_train = label_encoder.fit_transform(y_train)
+    y_test = label_encoder.fit_transform(y_test)
     return (x_train, y_train), (x_test ,y_test)
 
 def construct_model():
     (x_train, y_train), (x_test, y_test) = collect_training_data_lines()
     model = keras.Sequential([
         keras.layers.Dense(128, activation=tf.nn.relu),
-        keras.layers.Dense(10, activation=tf.nn.softmax)
+        keras.layers.Dense(200, activation=tf.nn.softmax)
     ])
     model.compile(optimizer='adam',
                   loss='sparse_categorical_crossentropy',
