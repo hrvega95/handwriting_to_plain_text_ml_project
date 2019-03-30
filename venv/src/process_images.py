@@ -1,6 +1,6 @@
 from imutils import contours
 from skimage import measure
-from parse_text_file_data import read_text_data
+from parse_text_file_data import *
 import sklearn
 import PIL.Image
 import sys
@@ -12,7 +12,7 @@ import time
 import multiprocessing as mp
 
 class image:
-    def __init__(self, img, image_name, image_index):
+    def __init__(self, img, image_name, image_index=None):
         self.img = img
         self.image_name = image_name
         self.image_index = image_index
@@ -148,7 +148,7 @@ def get_all_data_png(root,containing = None):
                     list_png_paths.append(name_w_path)
     return list_png_paths
 
-def resize_images(data_type,scale="d"):
+def resize_images(data_type,scale="n"):
     """
     Resize all of the images of a specific data_type so that they will be the same size of either the smallest or the largest image in the data set.
     :param data_type: Can be line, sentence, or word
@@ -162,19 +162,39 @@ def resize_images(data_type,scale="d"):
     elif scale == "u":
         #option upscales all the images in the data set to match those of the largest image in the data set
         height, width = find_largest_image(data_type)
+    elif scale == "n":
+        height, width = 32, 128
     root = os.path.dirname(__file__) + "/../Data/" + data_type + "/"
     for file_w_path in get_all_data_png(root):
-        png_file_name = file_w_path.split("/")[-1]
-        #make sure to only downsize the images that were sepearted from lines/sentences to words
-        if len(png_file_name) < 10:
-            img = cv2.imread(file_w_path)
-            resized_img = cv2.resize(img,(width,height), interpolation=cv2.INTER_NEAREST)
-            png_directory = file_w_path.replace(png_file_name,"")
-            file_name = png_file_name.replace(".png","")
-            cv2.imwrite(png_directory+file_name+"_resized_"+scale+".png", resized_img)
-            
-        else:
+        try:
+            png_file_name = file_w_path.split("/")[-1]
+            print(png_file_name)
+            #make sure to only downsize the images that were sepearted from lines/sentences to words
+            if len(png_file_name) < 10 or data_type == "words":
+                img = cv2.imread(file_w_path)
+                resized_img = cv2.resize(img,(width,height), interpolation=cv2.INTER_NEAREST)
+                png_directory = file_w_path.replace(png_file_name,"")
+                file_name = png_file_name.replace(".png","")
+                path_to_write = png_directory+file_name+"_resized_"+scale+".png"
+                if os.path.isfile(path_to_write):
+                    os.remove(path_to_write)
+                cv2.imwrite(path_to_write, resized_img)
+            else:
+                continue
+        except Exception as e:
+            print("Unable to resize " + file_name)
             continue
+
+def delete_resied_images(data_type):
+    root = os.path.dirname(__file__) + "/../Data/" + data_type +  "/"
+    print(root)
+    for file_w_path in get_all_data_png(root):
+
+        png_file_name = file_w_path.split("/")[-1]
+        if "resized" in png_file_name:
+            print("deleting file: " + str(file_w_path))
+            os.remove(file_w_path)
+
 
 def convert_resized_images_to_numpy(data_type,start=0,data_size=None):
     """
@@ -191,24 +211,26 @@ def convert_resized_images_to_numpy(data_type,start=0,data_size=None):
     pool_outputs = mulprocess_image_to_np(list_resized_images,start,data_size)
     y_train_dict  = read_text_data("lines.txt")
     y_train = []
+    x_train = []
     first_image = pool_outputs[0]
-    x_train = first_image.img/255
+    x_train.append(first_image.img)
     y_train.append(y_train_dict.get(first_image.image_name)[int(first_image.image_index)])
-    for flattened_img in pool_outputs[1:]:
+    for img_obj in pool_outputs[1:]:
         try:
-            y_train.append(y_train_dict.get(flattened_img.image_name)[int(flattened_img.image_index) - 1])
-            x_train = np.vstack((x_train, flattened_img.img/255))
+            y_train.append(y_train_dict.get(img_obj.image_name)[int(img_obj.image_index) - 1])
+            x_train.append(img_obj.img)
         except Exception as e:
-            print("Skipped image: " + str(flattened_img.image_name) + " ,index: " +str(int(flattened_img.image_index) - 1))
+            print("skipped because of error" + str(e))
+            print("Skipped image: " + str(img_obj.image_name) + " ,index: " +str(int(img_obj.image_index) - 1))
             continue
     y_train = np.asarray(y_train)
-    print(y_train)
+    x_train = np.asarray(x_train)
     return x_train,y_train
 
 def mulprocess_image_to_np(image_list,start,data_size):
     pool_size = mp.cpu_count()
     pool = mp.Pool(processes=pool_size)
-    list_np_arrays = pool.map(flatten_images, image_list[start:data_size])
+    list_np_arrays = pool.map(process_image_to_np, image_list[start:data_size])
     pool.close()
     pool.join()
     return list_np_arrays
@@ -219,8 +241,37 @@ def flatten_images(list_images_path):
     flattened_img = image(x_train,list_images_path.split("/")[-2], list_images_path.split("/")[-1].split("_")[0])
     return flattened_img
 
+def process_image_to_np(list_images_path):
+    img = cv2.imread(list_images_path, cv2.IMREAD_GRAYSCALE)
+    #normalize images
+    np_img = image(img/255, list_images_path.split("/")[-1])
+    return np_img
+
+def get_words(start=0,data_size=None):
+    root = os.path.dirname(__file__) + "/../Data/words/"
+    list_words = get_all_data_png(root,"resized")
+    pool_outputs = mulprocess_image_to_np(list_words,start,data_size)
+    y_train_dict = read_word_test_data("words.txt")
+    y_train = []
+    x_train = []
+    first_image = pool_outputs[0]
+    x_train.append(first_image.img)
+    y_train.append(y_train_dict.get(str(first_image.image_name).split("_")[0]))
+    for img_obj in pool_outputs[1:]:
+        try:
+            y_train.append(y_train_dict.get(str(img_obj.image_name).split("_")[0]))
+            x_train.append(img_obj.img)
+        except Exception as e:
+            print("skipped because of error" + str(e))
+            print("Skipped image: " + str(img_obj.image_name) )
+            continue
+    y_train = np.asarray(y_train)
+    x_train = np.asarray(x_train).reshape(len(pool_outputs),32,128,1)
+    print(y_train)
+    return x_train, y_train
+    
 
 if __name__ == "__main__":
-    convert_resized_images_to_numpy("lines")
+    delete_resied_images("words")
 
 

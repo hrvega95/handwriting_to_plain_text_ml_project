@@ -24,3 +24,13 @@ def read_text_data(filename):
             data_dict[data_line_name] = words
     return data_dict
 
+
+def read_word_test_data(filename):
+    file = open(os.path.dirname(__file__) + "/../Data/" + str(filename).strip(".txt") + "/" + str(filename), "r")
+    data_dict = {}
+    for line in file.readlines():
+        list_parsed = line.rstrip().split(" ")
+        if list_parsed[0] != "#":
+            data_dict[list_parsed[0]] = list_parsed[-1].lower()
+    print(data_dict)
+    return data_dict
